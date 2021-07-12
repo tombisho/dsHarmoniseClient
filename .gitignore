@@ -1,10 +1,11 @@
 # History files
 .Rhistory
 .Rapp.history
+.V8history
 
 # Session Data files
 .RData
-
+creds.R
 # User-specific files
 .Ruserdata
 

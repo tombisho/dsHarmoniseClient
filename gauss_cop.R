@@ -24,7 +24,7 @@ supp <- IPDsummary$is.binary.variable
 names <- IPDsummary$variable.names
 
 
-H <- 300  ## number of artificial IPD copies to be generated
+H <- 1  ## number of artificial IPD copies to be generated
 
 
 set.seed(8736, "L'Ecuyer")

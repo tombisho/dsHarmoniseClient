@@ -1,7 +1,7 @@
 # The login data object is a data.frame
 builder <- DSI::newDSLoginBuilder()
-builder$append(server="server1", url="http://192.168.56.150:8080",
-               user="administrator", password="datashield_test&", table = "DASIM.DASIM3")#table = "TESTING.DATASET1")
+# hide credentials
+source("creds.R")
 logindata <- builder$build()
 
 # Then perform login in each server
@@ -9,11 +9,14 @@ library(DSOpal)
 library(dsBaseClient)
 library(gcipdr)
 datashield.logout(conns = connections)
-connections <- datashield.login(logins=logindata, assign = TRUE)
+connections <- datashield.login(logins=logindata, assign = TRUE, restore = "alswh")
 
 # First step, sort out which variables are numeric, factors and other (logical, character and integer)
 # other need to be discarded (but in the future might treat as factors?)
 columns = ds.colnames('D')$server1
+
+columns = c("y4q12c" , "y5q12b" ,  "y6q12b", "y7q24b", "y8q24b", "y3age", "y4age",
+            "y5age", "y6age", "y7age", "y8age")
 
 numeric_vars = character()
 factor_vars = character()
@@ -55,9 +58,9 @@ for(var in factor_vars){
   my_levels = ds.levels(paste0("D$",var))$server1[[1]]
   my_length = length(my_levels)
   if (my_length > 2){ # no need to deal with variables that are already binary
-    my_length = my_length - 1
+    factorInfo = ds.asFactor(input.var.name = paste0("D$",var), fixed.dummy.vars = TRUE, newobj.name = "dummy")
+    my_length = length(factorInfo$all.unique.levels) - 1
     new_levels = list(NULL,paste0(c(1:my_length),"_",var))
-    ds.asFactor(input.var.name = paste0("D$",var), fixed.dummy.vars = TRUE, newobj.name = "dummy")
     ds.matrixDimnames(M1="dummy", dimnames = new_levels, newobj="dummy2")
     ds.dataFrame(x = c("my_frame","dummy2"), newobj = "my_frame")
   }
@@ -70,10 +73,36 @@ for(var in factor_vars){
 
 }
 
+
+#save workspace
+
+datashield.workspace_save(connections, "my_frame")
+datashield.logout(connections)
+connections <- datashield.login(logins=logindata, assign = TRUE, restore = "my_frame")
+
+
+#do the all correlation
+# problem if all have same value, so these columns get removed and reported later
+
+corrs = ds.cor(x="my_frame")
+
+corr = corrs$server1$`Correlation Matrix`
+attr(corr, "corr.type") <- "moment.corr"
+
+#find index of failed variables
+index_remove = which(is.na(corr[1,]) | is.infinite(corr[1,]))
+
+corr = corr[-index_remove,-index_remove]
+supp = supp[-index_remove]
+
+columns = ds.colnames('my_frame')$server1
+
+columns = columns[-index_remove]
+
 #do the means, sd, kurtosis, skewness
 # put this in the moms matrix
 
-columns = ds.colnames('my_frame')$server1
+
 means = numeric()
 sds = numeric()
 skews = numeric()
@@ -91,13 +120,8 @@ kurts = as.numeric(kurts)
 moms1 = data.frame(mx = means, sdx = sds, skx = skews, ktx = kurts)
 rownames(moms1) <- columns
 moms = data.matrix(moms1, rownames.force = TRUE)
+save(moms,file = "moms.RData")
 
-#do the all correlation
-# problem if all have same value, 
-corrs = ds.cor(x="my_frame")
-
-corr = corrs$server1$`Correlation Matrix`
-attr(corr, "corr.type") <- "moment.corr"
 
 names = columns
 
@@ -117,3 +141,5 @@ system.time(
 )
 
 IPD = data.frame(IPDstar$Xspace[[1]])
+
+#list of failed variables - mostly likely because 
